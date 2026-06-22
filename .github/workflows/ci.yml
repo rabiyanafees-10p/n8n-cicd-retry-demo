@@ -1,6 +1,40 @@
-- name: Send Results to n8n
+name: CI Flaky Test Monitor
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test-job:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install Dependencies
+        run: |
+          if [ -f package.json ]; then
+            npm install
+          fi
+
+      - name: Run Tests with Retry Logic
+        id: run-tests
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 2
+          command: node test.js
+
+      - name: Send Results to n8n
         if: always()
         run: |
           curl -X POST "${{ secrets.N8N_WEBHOOK_URL }}" \
           -H "Content-Type: application/json" \
-          -d '{"repo": "${{ github.repository }}", "run_id": "${{ github.run_id }}", "attempts": ${{ steps.run-tests.outputs.attempts || 2 }}, "conclusion": "${{ job.status == 'success' && 'success' || 'failure' }}"}'
+          -d '{"repo": "${{ github.repository }}", "run_id": "${{ github.run_id }}", "attempts": ${{ steps.run-tests.outputs.attempts || 2 }}, "conclusion": "${{ job.status == '\''success'\'' && '\''success'\'' || '\''failure'\'' }}"}'
