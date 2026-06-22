@@ -1,37 +1,6 @@
-name: CI Pipeline
-on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
-jobs:
-  test-job:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Run Tests with Retry
-        id: run-tests
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 5
-          max_attempts: 2
-          command: node test.js
-
-      - name: Trigger n8n Webhook
+- name: Send Results to n8n
         if: always()
         run: |
           curl -X POST "${{ secrets.N8N_WEBHOOK_URL }}" \
           -H "Content-Type: application/json" \
-          -d '{
-            "repo": "${{ github.repository }}",
-            "run_id": "${{ github.run_id }}",
-            "conclusion": "${{ steps.run-tests.outcome }}",
-            "attempts": ${{ steps.run-tests.outputs.attempts }}
-          }'
+          -d '{"repo": "${{ github.repository }}", "run_id": "${{ github.run_id }}", "attempts": ${{ steps.run-tests.outputs.attempts || 2 }}, "conclusion": "${{ job.status == 'success' && 'success' || 'failure' }}"}'
